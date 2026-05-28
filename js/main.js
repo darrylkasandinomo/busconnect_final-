@@ -636,10 +636,12 @@ function resetTrackerRole() {
 	if (isTracking) stopTracking();
 	if (trackerSocket) { trackerSocket.disconnect(); trackerSocket = null; }
 
-	const wrap      = document.getElementById('tracker-role-wrap');
-	const dashboard = document.getElementById('tracker-dashboard');
-	if (wrap)      wrap.style.display      = 'block';
-	if (dashboard) dashboard.style.display = 'none';
+	const wrap       = document.getElementById('tracker-role-wrap');
+	const dashboard  = document.getElementById('tracker-dashboard');
+	const adminPanel = document.getElementById('admin-panel');
+	if (wrap)       wrap.style.display       = 'block';
+	if (dashboard)  dashboard.style.display  = 'none';
+	if (adminPanel) adminPanel.style.display = 'none';
 
 	// Reset map state so it re-initializes cleanly next time
 	if (trackerMap) { trackerMap.remove(); trackerMap = null; }
