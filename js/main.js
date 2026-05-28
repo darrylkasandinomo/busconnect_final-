@@ -6,8 +6,8 @@
 
 'use strict';
 
-// Define your backend base URL
-const API_BASE_URL = 'http://localhost:3000'; 
+// Altijd verbinden met de server die de pagina heeft geserveerd
+const API_BASE_URL = window.location.origin;
 
 // ── 1. THEME TOGGLE (Dark / Light Mode) ──────────────────────
 function initThemeToggle() {
@@ -508,15 +508,16 @@ function initScrollReveal() {
 // ── 9. TRACKER — Live Locatie / Schoolbus GPS ────────────────
 const TRACKER_BUS_ID = 'bus-001';
 
-let trackerRole     = null;
-let trackerSocket   = null;
-let trackerMap      = null;
-let busMarker       = null;
-let routePolyline   = null;
-let routeCoords     = [];
-let geoWatchId      = null;
-let isTracking      = false;
-let mapsLoadPromise = null;
+let trackerRole      = null;
+let trackerSocket    = null;
+let trackerMap       = null;
+let busMarker        = null;
+let routePolyline    = null;
+let routeCoords      = [];
+let geoWatchId       = null;
+let isTracking       = false;
+let mapsLoadPromise  = null;
+let pendingLocation  = null; // locatie ontvangen voordat kaart klaar was
 
 // ── Admin token helpers ──
 function getAdminToken() { return sessionStorage.getItem('bc-admin-token'); }
@@ -559,10 +560,11 @@ function setTrackerRole(role) {
 	renderTrackerControls(role);
 	if (role === 'admin' && adminPanel) adminPanel.style.display = 'block';
 
-	connectTrackerSocket();
-
+	// Eerst kaart laden, dan socket verbinden — voorkomt race condition
+	// waarbij locatie binnenkomt voordat de kaart klaar is
 	loadGoogleMaps().then(() => {
 		initTrackerMap();
+		connectTrackerSocket();
 	}).catch(() => {
 		showTrackerToast('⚠️', 'Kaart kon niet worden geladen.');
 	});
@@ -645,9 +647,10 @@ function resetTrackerRole() {
 
 	// Reset map state so it re-initializes cleanly next time
 	if (trackerMap) { trackerMap.remove(); trackerMap = null; }
-	busMarker     = null;
-	routePolyline = null;
-	routeCoords   = [];
+	busMarker       = null;
+	routePolyline   = null;
+	routeCoords     = [];
+	pendingLocation = null;
 }
 
 // ── Chauffeur-knoppen renderen ──
@@ -677,6 +680,10 @@ function connectTrackerSocket() {
 	});
 
 	trackerSocket.on('bus:location-update', ({ lat, lng }) => {
+		if (!trackerMap) {
+			pendingLocation = { lat, lng }; // kaart nog niet klaar, bewaar voor later
+			return;
+		}
 		updateBusMarker(lat, lng);
 	});
 
@@ -807,6 +814,12 @@ function initTrackerMap() {
 		attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 		maxZoom: 19
 	}).addTo(trackerMap);
+
+	// Toon locatie die binnenkwam voordat de kaart klaar was
+	if (pendingLocation) {
+		updateBusMarker(pendingLocation.lat, pendingLocation.lng);
+		pendingLocation = null;
+	}
 }
 
 // ── GPS Tracking (chauffeur) ──
