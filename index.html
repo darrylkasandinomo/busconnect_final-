@@ -517,7 +517,7 @@
             <div id="tracker-map"></div>
 
             <!-- Overlay wanneer geen locatie beschikbaar -->
-            <div class="tracker-map-overlay" id="tracker-map-overlay">
+            <div class="tracker-map-overlay" id="tracker-map-overlay" style="display:none;">
               <div class="overlay-inner">
                 <div class="overlay-icon">📍</div>
                 <p class="overlay-title">Locatie tijdelijk niet beschikbaar</p>
@@ -581,7 +581,39 @@
     <button class="toast-close" onclick="closeTrackerToast()">✕</button>
   </div>
 
-  <!-- Google Maps API-sleutel wordt veilig opgehaald via /api/config -->
+  <!-- Leaflet (OpenStreetMap) wordt dynamisch geladen via main.js -->
+
+  <!-- ── Admin inlog modal ── -->
+  <div class="modal-overlay" id="admin-login-modal" onclick="closeAdminModal(event)">
+    <div class="modal" style="max-width:400px;">
+      <div class="modal-header">
+        <h2>⚙️ Admin inloggen</h2>
+        <button class="modal-close" onclick="closeAdminModalDirect()">✕</button>
+      </div>
+      <div class="modal-body" style="padding-bottom:0;">
+        <p style="font-size:0.88rem;color:var(--text-muted);margin-bottom:1.25rem;">
+          Alleen beheerders hebben toegang tot de admin weergave.
+        </p>
+        <div id="admin-login-error" style="display:none;background:#fde8e8;color:var(--danger);border:1px solid #f5c0c0;border-radius:var(--radius);padding:0.6rem 0.8rem;font-size:0.85rem;margin-bottom:1rem;"></div>
+        <form id="admin-login-form" onsubmit="submitAdminLogin(event)">
+          <div class="form-field" style="margin-bottom:1rem;">
+            <label for="adm-email" style="display:block;font-size:0.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.35rem;">E-mailadres</label>
+            <input type="email" id="adm-email" placeholder="admin@busconnect.sr" required
+              style="width:100%;padding:0.65rem 0.85rem;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius);font-size:0.93rem;font-family:var(--font-body);color:var(--text);outline:none;" />
+          </div>
+          <div class="form-field" style="margin-bottom:1.25rem;">
+            <label for="adm-password" style="display:block;font-size:0.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.35rem;">Wachtwoord</label>
+            <input type="password" id="adm-password" placeholder="••••••••" required
+              style="width:100%;padding:0.65rem 0.85rem;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius);font-size:0.93rem;font-family:var(--font-body);color:var(--text);outline:none;" />
+          </div>
+          <div class="modal-actions" style="padding:0;border:none;margin-bottom:1.25rem;">
+            <button type="submit" class="btn btn-amber" style="flex:1;" id="adm-login-btn">🔐 Inloggen</button>
+            <button type="button" class="btn btn-dark" onclick="closeAdminModalDirect()">Annuleer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <div class="modal-overlay" id="modal" onclick="closeModal(event)">
     <div class="modal">

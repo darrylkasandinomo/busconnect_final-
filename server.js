@@ -81,13 +81,17 @@ db.getConnection((err, connection) => {
 const activeBuses = new Map();
 
 io.on('connection', socket => {
+    // Stuur actieve bussen + laatste locatie naar nieuwe verbinding
     activeBuses.forEach((bus, busId) => {
         socket.emit('bus:status', { busId, online: true, driverName: bus.driverName });
+        if (bus.lastLat !== undefined && bus.lastLng !== undefined) {
+            socket.emit('bus:location-update', { busId, lat: bus.lastLat, lng: bus.lastLng });
+        }
     });
 
     socket.on('driver:start', ({ driverName, busId }) => {
         const id = busId || socket.id;
-        activeBuses.set(id, { socketId: socket.id, driverName, path: [] });
+        activeBuses.set(id, { socketId: socket.id, driverName, path: [], lastLat: undefined, lastLng: undefined });
         io.emit('bus:status', { busId: id, online: true, driverName });
         console.log(`Bus ${id} started tracking — driver: ${driverName}`);
     });
@@ -95,7 +99,11 @@ io.on('connection', socket => {
     socket.on('driver:location', ({ lat, lng, busId }) => {
         const id  = busId || socket.id;
         const bus = activeBuses.get(id);
-        if (bus) bus.path.push({ lat, lng });
+        if (bus) {
+            bus.path.push({ lat, lng });
+            bus.lastLat = lat;
+            bus.lastLng = lng;
+        }
 
         db.query(
             'INSERT INTO bus_locations (bus_id, latitude, longitude) VALUES (?, ?, ?)',
@@ -136,6 +144,42 @@ app.get('/api/tracker/status', (req, res) => {
         buses.push({ busId, driverName: bus.driverName, online: true });
     });
     res.json({ buses });
+});
+
+// ── API: Admin — beveiligd overzicht ─────────────────────────
+const authMiddleware = require('./middlewares/auth');
+
+app.get('/api/admin/stats', authMiddleware, (req, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Geen toegang.' });
+
+    const buses = [];
+    activeBuses.forEach((bus, busId) => {
+        buses.push({ busId, driverName: bus.driverName, online: true });
+    });
+
+    db.query('SELECT COUNT(*) AS total FROM drivers', (err, rows) => {
+        const driverCount = err ? '?' : (rows[0]?.total ?? 0);
+        db.query('SELECT COUNT(*) AS total FROM contact_messages', (err2, rows2) => {
+            const msgCount = err2 ? '?' : (rows2[0]?.total ?? 0);
+            res.json({ driverCount, msgCount, activeBuses: buses });
+        });
+    });
+});
+
+app.get('/api/admin/drivers', authMiddleware, (req, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Geen toegang.' });
+    db.query('SELECT user_id, voornaam, achternaam, email, telefoon, route, school, created_at FROM drivers ORDER BY created_at DESC', (err, rows) => {
+        if (err) return res.status(500).json({ error: 'Database fout.' });
+        res.json(rows);
+    });
+});
+
+app.delete('/api/admin/drivers/:id', authMiddleware, (req, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Geen toegang.' });
+    db.query('DELETE FROM drivers WHERE user_id = ?', [req.params.id], (err) => {
+        if (err) return res.status(500).json({ error: 'Verwijderen mislukt.' });
+        res.json({ success: true });
+    });
 });
 
 // ── ROUTES ────────────────────────────────────────────────────

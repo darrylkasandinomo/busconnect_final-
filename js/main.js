@@ -518,15 +518,36 @@ let geoWatchId      = null;
 let isTracking      = false;
 let mapsLoadPromise = null;
 
+// ── Admin token helpers ──
+function getAdminToken() { return sessionStorage.getItem('bc-admin-token'); }
+function saveAdminToken(t) { sessionStorage.setItem('bc-admin-token', t); }
+function clearAdminToken() { sessionStorage.removeItem('bc-admin-token'); }
+
+function parseJwt(token) {
+	try { return JSON.parse(atob(token.split('.')[1])); } catch { return null; }
+}
+function isAdminTokenValid(token) {
+	if (!token) return false;
+	const p = parseJwt(token);
+	return p?.role === 'admin' && p.exp * 1000 > Date.now();
+}
+
 // ── Rol selecteren ──
 function setTrackerRole(role) {
-	trackerRole = sessionStorage.getItem('tracker-role') || role;
-	trackerRole = role; // always update on explicit selection
+	// Admin vereist inloggen
+	if (role === 'admin') {
+		if (!isAdminTokenValid(getAdminToken())) {
+			openAdminLoginModal();
+			return;
+		}
+	}
+
+	trackerRole = role;
 	sessionStorage.setItem('tracker-role', role);
 
-	const wrap      = document.getElementById('tracker-role-wrap');
-	const dashboard = document.getElementById('tracker-dashboard');
-	const badge     = document.getElementById('tracker-role-badge');
+	const wrap       = document.getElementById('tracker-role-wrap');
+	const dashboard  = document.getElementById('tracker-dashboard');
+	const badge      = document.getElementById('tracker-role-badge');
 	const adminPanel = document.getElementById('admin-panel');
 
 	if (wrap)      wrap.style.display      = 'none';
@@ -543,14 +564,73 @@ function setTrackerRole(role) {
 	loadGoogleMaps().then(() => {
 		initTrackerMap();
 	}).catch(() => {
-		showTrackerToast('⚠️', 'Kaart kon niet worden geladen. Controleer de Google Maps API-sleutel.');
+		showTrackerToast('⚠️', 'Kaart kon niet worden geladen.');
 	});
 
 	requestNotificationPermission();
 }
 
+// ── Admin login modal ──
+function openAdminLoginModal() {
+	const modal = document.getElementById('admin-login-modal');
+	if (modal) {
+		modal.classList.add('open');
+		document.body.style.overflow = 'hidden';
+		document.getElementById('admin-login-error').style.display = 'none';
+		document.getElementById('admin-login-form').reset();
+		setTimeout(() => document.getElementById('adm-email')?.focus(), 100);
+	}
+}
+
+function closeAdminModal(e) {
+	if (e.target === document.getElementById('admin-login-modal')) closeAdminModalDirect();
+}
+
+function closeAdminModalDirect() {
+	const modal = document.getElementById('admin-login-modal');
+	if (modal) modal.classList.remove('open');
+	document.body.style.overflow = '';
+}
+
+async function submitAdminLogin(event) {
+	event.preventDefault();
+	const email    = document.getElementById('adm-email').value.trim();
+	const password = document.getElementById('adm-password').value;
+	const btn      = document.getElementById('adm-login-btn');
+	const errEl    = document.getElementById('admin-login-error');
+
+	btn.textContent = '⏳ Bezig…';
+	btn.disabled    = true;
+	errEl.style.display = 'none';
+
+	try {
+		const res  = await fetch(`${API_BASE_URL}/api/auth/admin/login`, {
+			method:  'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body:    JSON.stringify({ email, password })
+		});
+		const data = await res.json();
+
+		if (res.ok && data.success) {
+			saveAdminToken(data.token);
+			closeAdminModalDirect();
+			setTrackerRole('admin');
+		} else {
+			errEl.textContent   = data.error || 'Ongeldige inloggegevens.';
+			errEl.style.display = 'block';
+		}
+	} catch {
+		errEl.textContent   = 'Geen verbinding met de server.';
+		errEl.style.display = 'block';
+	} finally {
+		btn.textContent = '🔐 Inloggen';
+		btn.disabled    = false;
+	}
+}
+
 function resetTrackerRole() {
 	sessionStorage.removeItem('tracker-role');
+	clearAdminToken();
 	trackerRole = null;
 
 	if (isTracking) stopTracking();
@@ -562,13 +642,10 @@ function resetTrackerRole() {
 	if (dashboard) dashboard.style.display = 'none';
 
 	// Reset map state so it re-initializes cleanly next time
-	trackerMap    = null;
+	if (trackerMap) { trackerMap.remove(); trackerMap = null; }
 	busMarker     = null;
 	routePolyline = null;
 	routeCoords   = [];
-
-	const mapEl = document.getElementById('tracker-map');
-	if (mapEl) mapEl.innerHTML = '';
 }
 
 // ── Chauffeur-knoppen renderen ──
@@ -630,8 +707,8 @@ function handleBusStatus(online, driverName) {
 		ticStatus.style.color = online ? 'var(--success)' : '';
 	}
 
-	if (!online && overlay) {
-		overlay.style.display = 'flex';
+	if (overlay) {
+		overlay.style.display = online ? 'none' : 'flex';
 	}
 
 	if (online) {
@@ -652,40 +729,34 @@ function updateBusMarker(lat, lng) {
 
 	if (!trackerMap) return;
 
-	const pos = { lat, lng };
+	const busIcon = L.divIcon({
+		html: '<img src="img/buslogo.svg" style="width:44px;height:44px;">',
+		iconSize:   [44, 44],
+		iconAnchor: [22, 22],
+		className:  ''
+	});
 
 	if (!busMarker) {
-		busMarker = new google.maps.Marker({
-			position: pos,
-			map:      trackerMap,
-			title:    'Schoolbus — BusConnect',
-			icon: {
-				url:        'img/buslogo.svg',
-				scaledSize: new google.maps.Size(44, 44),
-				anchor:     new google.maps.Point(22, 22)
-			},
-			zIndex: 10
-		});
+		busMarker = L.marker([lat, lng], { icon: busIcon, zIndexOffset: 1000 })
+			.addTo(trackerMap)
+			.bindTooltip('Schoolbus — BusConnect');
 	} else {
-		busMarker.setPosition(pos);
+		busMarker.setLatLng([lat, lng]);
 	}
 
 	// Route polyline
-	routeCoords.push(pos);
+	routeCoords.push([lat, lng]);
 	if (!routePolyline) {
-		routePolyline = new google.maps.Polyline({
-			path:         routeCoords,
-			geodesic:     true,
-			strokeColor:  '#f5a623',
-			strokeOpacity: 0.85,
-			strokeWeight: 5,
-			map:          trackerMap
-		});
+		routePolyline = L.polyline(routeCoords, {
+			color:   '#f5a623',
+			opacity: 0.85,
+			weight:  5
+		}).addTo(trackerMap);
 	} else {
-		routePolyline.setPath(routeCoords);
+		routePolyline.setLatLngs(routeCoords);
 	}
 
-	trackerMap.panTo(pos);
+	trackerMap.panTo([lat, lng]);
 
 	const now = new Date();
 	const timeEl   = document.getElementById('tic-time');
@@ -697,34 +768,28 @@ function updateBusMarker(lat, lng) {
 	if (pointsEl) pointsEl.textContent = routeCoords.length;
 }
 
-// ── Google Maps laden (lazy, eenmalig) ──
+// ── Leaflet kaart laden (lazy, eenmalig) ──
 function loadGoogleMaps() {
 	if (mapsLoadPromise) return mapsLoadPromise;
 
-	if (window.google && window.google.maps) {
+	if (window.L) {
 		mapsLoadPromise = Promise.resolve();
 		return mapsLoadPromise;
 	}
 
-	mapsLoadPromise = fetch(`${API_BASE_URL}/api/config`)
-		.then(r => r.json())
-		.then(cfg => new Promise((resolve, reject) => {
-			window._mapsReadyResolve = resolve;
+	mapsLoadPromise = new Promise((resolve, reject) => {
+		const link = document.createElement('link');
+		link.rel  = 'stylesheet';
+		link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+		document.head.appendChild(link);
 
-			const script = document.createElement('script');
-			script.src   = `https://maps.googleapis.com/maps/api/js?key=${cfg.mapsKey}&callback=_mapsReadyResolve&language=nl`;
-			script.async = true;
-			script.defer = true;
-			script.onerror = () => {
-				mapsLoadPromise = null;
-				reject(new Error('Google Maps laden mislukt'));
-			};
-			document.head.appendChild(script);
-		}))
-		.catch(err => {
-			mapsLoadPromise = null;
-			throw err;
-		});
+		const script = document.createElement('script');
+		script.src   = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+		script.async = true;
+		script.onload  = resolve;
+		script.onerror = () => { mapsLoadPromise = null; reject(new Error('Leaflet laden mislukt')); };
+		document.head.appendChild(script);
+	});
 
 	return mapsLoadPromise;
 }
@@ -734,16 +799,12 @@ function initTrackerMap() {
 	const el = document.getElementById('tracker-map');
 	if (!el || trackerMap) return;
 
-	trackerMap = new google.maps.Map(el, {
-		center:              { lat: 5.8520, lng: -55.2038 }, // Paramaribo, Suriname
-		zoom:                13,
-		mapTypeControl:      false,
-		streetViewControl:   false,
-		fullscreenControl:   true,
-		zoomControlOptions: {
-			position: google.maps.ControlPosition.RIGHT_BOTTOM
-		}
-	});
+	trackerMap = L.map('tracker-map').setView([5.8520, -55.2038], 13);
+
+	L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+		attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+		maxZoom: 19
+	}).addTo(trackerMap);
 }
 
 // ── GPS Tracking (chauffeur) ──
@@ -807,12 +868,11 @@ function stopTracking() {
 
 	// Route wissen van de kaart maar historiek bewaren
 	routeCoords   = [];
-	busMarker     = null;
-	routePolyline = null;
 	if (trackerMap) {
-		if (busMarker)     busMarker.setMap(null);
-		if (routePolyline) routePolyline.setMap(null);
+		if (busMarker)     { trackerMap.removeLayer(busMarker);     busMarker     = null; }
+		if (routePolyline) { trackerMap.removeLayer(routePolyline); routePolyline = null; }
 	}
+	routeCoords = [];
 }
 
 function setTrackButtonState(tracking) {
@@ -903,11 +963,13 @@ function initTrackerPage() {
 }
 
 // Window bindings (vereist door module scope)
-window.setTrackerRole    = setTrackerRole;
-window.resetTrackerRole  = resetTrackerRole;
-window.toggleTracking    = toggleTracking;
-window.closeTrackerToast = closeTrackerToast;
-window._mapsReadyResolve = null; // wordt overschreven door loadGoogleMaps
+window.setTrackerRole       = setTrackerRole;
+window.resetTrackerRole     = resetTrackerRole;
+window.toggleTracking       = toggleTracking;
+window.closeTrackerToast    = closeTrackerToast;
+window.closeAdminModal      = closeAdminModal;
+window.closeAdminModalDirect = closeAdminModalDirect;
+window.submitAdminLogin     = submitAdminLogin;
 
 // ── 9. INIT ───────────────────────────────────────────────────
 async function fetchLiveDrivers() {
