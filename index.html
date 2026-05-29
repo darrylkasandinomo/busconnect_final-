@@ -89,24 +89,78 @@
               <label for="f-school">School</label>
               <select id="f-school" class="items" onchange="filterDrivers()">
                 <option value="">— Alle scholen —</option>
-                <option value="O.S. Flora"          data-category="GLO">O.S. Flora</option>
-                <option value="O.S. Welgelegen"     data-category="GLO">O.S. Welgelegen</option>
-                <option value="O.S. Sophia's Lust"  data-category="GLO">O.S. Sophia's Lust</option>
-                <option value="HAVO"                data-category="VOJ">HAVO</option>
-                <option value="IMEAO"               data-category="VOJ">IMEAO</option>
+                <optgroup label="GLO — Basisscholen">
+                  <option value="O.S. Flora"              data-category="GLO">O.S. Flora</option>
+                  <option value="O.S. Welgelegen"         data-category="GLO">O.S. Welgelegen</option>
+                  <option value="O.S. Sophia's Lust"      data-category="GLO">O.S. Sophia's Lust</option>
+                  <option value="O.S. Rainville"          data-category="GLO">O.S. Rainville</option>
+                  <option value="O.S. Kwatta"             data-category="GLO">O.S. Kwatta</option>
+                  <option value="O.S. Beekhuizen"         data-category="GLO">O.S. Beekhuizen</option>
+                  <option value="O.S. Lelydorp"           data-category="GLO">O.S. Lelydorp</option>
+                  <option value="O.S. Livorno"            data-category="GLO">O.S. Livorno</option>
+                  <option value="O.S. Latour"             data-category="GLO">O.S. Latour</option>
+                  <option value="O.S. Meerzorg"           data-category="GLO">O.S. Meerzorg</option>
+                  <option value="O.S. Groningen"          data-category="GLO">O.S. Groningen</option>
+                  <option value="O.S. Domburg"            data-category="GLO">O.S. Domburg</option>
+                  <option value="O.S. Tammenga"           data-category="GLO">O.S. Tammenga</option>
+                  <option value="O.S. Slootwijk"          data-category="GLO">O.S. Slootwijk</option>
+                  <option value="O.S. Nieuw Nickerie"     data-category="GLO">O.S. Nieuw Nickerie</option>
+                  <option value="Dr. J.C. de Miranda"     data-category="GLO">Dr. J.C. de Miranda School</option>
+                  <option value="Prinses Beatrixschool"   data-category="GLO">Prinses Beatrixschool</option>
+                  <option value="Anton de Kom School"     data-category="GLO">Anton de Kom School</option>
+                </optgroup>
+                <optgroup label="VOJ — Middelbare scholen">
+                  <option value="AMS"                     data-category="VOJ">AMS — Alg. Middelbare School</option>
+                  <option value="HAVO"                    data-category="VOJ">HAVO</option>
+                  <option value="VWO"                     data-category="VOJ">VWO</option>
+                  <option value="MULO"                    data-category="VOJ">MULO</option>
+                  <option value="IMEAO"                   data-category="VOJ">IMEAO</option>
+                  <option value="LTS"                     data-category="VOJ">LTS — Lagere Technische School</option>
+                  <option value="LBGO"                    data-category="VOJ">LBGO</option>
+                  <option value="NATIN"                   data-category="VOJ">NATIN</option>
+                  <option value="Handelsberoepsschool"    data-category="VOJ">Handelsberoepsschool</option>
+                  <option value="IOL"                     data-category="VOJ">IOL — Opleiding Leraren</option>
+                </optgroup>
               </select>
             </div>
             <div class="field">
               <label for="f-route">Wijk / Route</label>
               <select id="f-route" onchange="filterDrivers()">
                 <option value="">— Alle routes —</option>
-                <option value="Noord">Noord</option>
-                <option value="Zuid">Zuid</option>
-                <option value="Oost">Oost</option>
-                <option value="West">West</option>
-                <option value="Centrum">Centrum</option>
-                <option value="Paramaribo">Paramaribo</option>
-                <option value="Wanica">Wanica</option>
+                <optgroup label="Paramaribo">
+                  <option value="Centrum">Centrum</option>
+                  <option value="Noord">Noord</option>
+                  <option value="Zuid">Zuid</option>
+                  <option value="Oost">Oost</option>
+                  <option value="West">West</option>
+                  <option value="Flora">Flora</option>
+                  <option value="Rainville">Rainville</option>
+                  <option value="Welgelegen">Welgelegen</option>
+                  <option value="Beekhuizen">Beekhuizen</option>
+                  <option value="Livorno">Livorno</option>
+                  <option value="Latour">Latour</option>
+                  <option value="Tammenga">Tammenga</option>
+                  <option value="Tourtonne">Tourtonne</option>
+                  <option value="Zorg en Hoop">Zorg en Hoop</option>
+                  <option value="Pontbuiten">Pontbuiten</option>
+                </optgroup>
+                <optgroup label="Wanica">
+                  <option value="Kwatta">Kwatta</option>
+                  <option value="Lelydorp">Lelydorp</option>
+                  <option value="Saramacca">Saramacca</option>
+                  <option value="Wanica">Wanica</option>
+                </optgroup>
+                <optgroup label="Commewijne">
+                  <option value="Meerzorg">Meerzorg</option>
+                  <option value="Nieuw Amsterdam">Nieuw Amsterdam</option>
+                  <option value="Commewijne">Commewijne</option>
+                </optgroup>
+                <optgroup label="Overige districten">
+                  <option value="Para">Para</option>
+                  <option value="Nickerie">Nickerie</option>
+                  <option value="Marowijne">Marowijne</option>
+                  <option value="Brokopondo">Brokopondo</option>
+                </optgroup>
               </select>
             </div>
             <div class="field">
@@ -410,21 +464,77 @@
                   <div class="form-field">
                     <label for="r-route">Wijk / route</label>
                     <select id="r-route">
-                      <option>Noord</option>
-                      <option>Zuid</option>
-                      <option>Oost</option>
-                      <option>West</option>
-                      <option>Centrum</option>
+                      <optgroup label="Paramaribo">
+                        <option>Centrum</option>
+                        <option>Noord</option>
+                        <option>Zuid</option>
+                        <option>Oost</option>
+                        <option>West</option>
+                        <option>Flora</option>
+                        <option>Rainville</option>
+                        <option>Welgelegen</option>
+                        <option>Beekhuizen</option>
+                        <option>Livorno</option>
+                        <option>Latour</option>
+                        <option>Tammenga</option>
+                        <option>Tourtonne</option>
+                        <option>Zorg en Hoop</option>
+                        <option>Pontbuiten</option>
+                      </optgroup>
+                      <optgroup label="Wanica">
+                        <option>Kwatta</option>
+                        <option>Lelydorp</option>
+                        <option>Saramacca</option>
+                        <option>Wanica</option>
+                      </optgroup>
+                      <optgroup label="Commewijne">
+                        <option>Meerzorg</option>
+                        <option>Nieuw Amsterdam</option>
+                        <option>Commewijne</option>
+                      </optgroup>
+                      <optgroup label="Overige districten">
+                        <option>Para</option>
+                        <option>Nickerie</option>
+                        <option>Marowijne</option>
+                        <option>Brokopondo</option>
+                      </optgroup>
                     </select>
                   </div>
                   <div class="form-field">
                     <label for="r-school">Aangesloten school</label>
                     <select id="r-school">
-                      <option>O.S. Flora</option>
-                      <option>O.S. Welgelegen</option>
-                      <option>O.S. Sophia's Lust</option>
-                      <option>HAVO</option>
-                      <option>IMEAO</option>
+                      <optgroup label="GLO — Basisscholen">
+                        <option>O.S. Flora</option>
+                        <option>O.S. Welgelegen</option>
+                        <option>O.S. Sophia's Lust</option>
+                        <option>O.S. Rainville</option>
+                        <option>O.S. Kwatta</option>
+                        <option>O.S. Beekhuizen</option>
+                        <option>O.S. Lelydorp</option>
+                        <option>O.S. Livorno</option>
+                        <option>O.S. Latour</option>
+                        <option>O.S. Meerzorg</option>
+                        <option>O.S. Groningen</option>
+                        <option>O.S. Domburg</option>
+                        <option>O.S. Tammenga</option>
+                        <option>O.S. Slootwijk</option>
+                        <option>O.S. Nieuw Nickerie</option>
+                        <option>Dr. J.C. de Miranda</option>
+                        <option>Prinses Beatrixschool</option>
+                        <option>Anton de Kom School</option>
+                      </optgroup>
+                      <optgroup label="VOJ — Middelbare scholen">
+                        <option>AMS</option>
+                        <option>HAVO</option>
+                        <option>VWO</option>
+                        <option>MULO</option>
+                        <option>IMEAO</option>
+                        <option>LTS</option>
+                        <option>LBGO</option>
+                        <option>NATIN</option>
+                        <option>Handelsberoepsschool</option>
+                        <option>IOL</option>
+                      </optgroup>
                     </select>
                   </div>
                   <div class="form-field">
