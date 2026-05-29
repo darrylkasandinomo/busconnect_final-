@@ -373,7 +373,7 @@ function submitRegistration(event) {
 			const form = document.getElementById('register-form');
 			if (form) form.style.pointerEvents = 'none';
 
-			const response = await fetch(`${API_BASE_URL}/api/register-driver`, {
+			const response = await fetch(`${API_BASE_URL}/api/drivers/register`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(registrationData)

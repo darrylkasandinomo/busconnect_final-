@@ -1,22 +1,44 @@
 'use strict';
 
 const express = require('express');
+const fs      = require('fs');
+const path    = require('path');
+
+const FALLBACK_FILE = path.join(__dirname, '..', 'data', 'drivers.json');
+
+function readFallback() {
+    try {
+        if (!fs.existsSync(FALLBACK_FILE)) return [];
+        return JSON.parse(fs.readFileSync(FALLBACK_FILE, 'utf8'));
+    } catch {
+        return [];
+    }
+}
+
+function writeFallback(rows) {
+    try {
+        fs.mkdirSync(path.dirname(FALLBACK_FILE), { recursive: true });
+        fs.writeFileSync(FALLBACK_FILE, JSON.stringify(rows, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Fallback write error:', e.message);
+    }
+}
 
 module.exports = (db) => {
     const router = express.Router();
 
-    // GET /api/drivers — list all registered drivers
+    // GET /api/drivers
     router.get('/', (req, res) => {
-        db.query(
-            'SELECT * FROM drivers ORDER BY created_at DESC',
-            (err, rows) => {
-                if (err) return res.status(500).json({ success: false, error: err.message });
-                res.json(rows);
+        db.query('SELECT * FROM drivers ORDER BY created_at DESC', (err, rows) => {
+            if (err) {
+                // Database niet beschikbaar — gebruik bestandsfallback
+                return res.json(readFallback());
             }
-        );
+            res.json(rows);
+        });
     });
 
-    // POST /api/drivers/register — register a new driver
+    // POST /api/drivers/register
     router.post('/register', (req, res) => {
         const {
             voornaam, achternaam, email, telefoon, profile_photo_url,
@@ -25,7 +47,7 @@ module.exports = (db) => {
         } = req.body;
 
         if (!voornaam || !achternaam || !email) {
-            return res.status(400).json({ success: false, error: 'Missing required fields' });
+            return res.status(400).json({ success: false, error: 'Vul alle verplichte velden in.' });
         }
 
         const sql = `
@@ -43,11 +65,31 @@ module.exports = (db) => {
         ], (err, result) => {
             if (err) {
                 if (err.code === 'ER_DUP_ENTRY') {
-                    return res.status(409).json({ success: false, error: 'Email address is already registered.' });
+                    return res.status(409).json({ success: false, error: 'Dit e-mailadres is al geregistreerd.' });
                 }
-                console.error('Register driver error:', err.message);
-                return res.status(500).json({ success: false, error: err.message });
+
+                // Database niet beschikbaar — sla op in bestand
+                console.warn('Database niet beschikbaar, gebruik bestandsfallback:', err.message);
+
+                const rows = readFallback();
+                if (rows.some(d => d.email === email)) {
+                    return res.status(409).json({ success: false, error: 'Dit e-mailadres is al geregistreerd.' });
+                }
+
+                const newId = Date.now();
+                const newDriver = {
+                    user_id: newId, voornaam, achternaam, email, telefoon,
+                    profile_photo_url, rijbewijs, ervaring, voertuig, capaciteit,
+                    kentekenplaat, bouwjaar, route, school, tijd_och, tijd_mid,
+                    dag, prijs, op_afhaal,
+                    created_at: new Date().toISOString()
+                };
+                rows.push(newDriver);
+                writeFallback(rows);
+
+                return res.json({ success: true, user_id: newId });
             }
+
             res.json({ success: true, user_id: result.insertId });
         });
     });
