@@ -54,6 +54,9 @@ function showPage(page) {
 	if (page === 'tracker') {
 		initTrackerPage();
 	}
+	if (page === 'driver-portal') {
+		initDriverPortal();
+	}
 }
 
 // ── 3. HAMBURGER MENU (mobile) ───────────────────────────────
@@ -138,16 +141,18 @@ function renderDriverCard(d) {
 }
 
 function filterDrivers() {
-	const search = document.getElementById('f-search')?.value.toLowerCase() || '';
+	const search = document.getElementById('f-search')?.value.toLowerCase().trim() || '';
 	const school = document.getElementById('f-school')?.value || '';
 	const route  = document.getElementById('f-route')?.value || '';
+	const selectedDay = document.getElementById('f-dag')?.value || '';
 
 	const filtered = allDrivers.filter(d => {
-		if (search && !d.naam.toLowerCase().includes(search) && !(d.route || '').toLowerCase().includes(search)) return false;
+		const volledigeNaam = (d.naam || '').toLowerCase();
+		const dRoute = (d.route || '').toLowerCase();
+		const dSchool = (d.school || '').toLowerCase();
+		if (search && !volledigeNaam.includes(search) && !dRoute.includes(search) && !dSchool.includes(search)) return false;
 		if (school && d.school !== school) return false;
 		if (route  && d.route  !== route)  return false;
-    
-		const selectedDay = document.getElementById('f-dag')?.value || '';
 		if (selectedDay && d.dagen && d.dagen.length > 0) {
 			const hasDay = d.dagen.some(day => day.trim().toLowerCase().includes(selectedDay.toLowerCase()));
 			if (!hasDay) return false;
@@ -326,10 +331,20 @@ function submitRegistration(event) {
 	const voornaam   = document.getElementById('r-voornaam')?.value.trim() || '';
 	const achternaam = document.getElementById('r-achternaam')?.value.trim() || '';
 	const email      = document.getElementById('r-email')?.value.trim() || '';
+	const password   = document.getElementById('r-password')?.value || '';
+	const password2  = document.getElementById('r-password2')?.value || '';
 	const akkoord    = document.getElementById('r-akkoord')?.checked || false;
 
 	if (!voornaam || !achternaam || !email) {
 		alert('Vul alle verplichte velden in (naam en e-mail).');
+		return;
+	}
+	if (!password || password.length < 6) {
+		alert('Wachtwoord moet minimaal 6 tekens zijn.');
+		return;
+	}
+	if (password !== password2) {
+		alert('Wachtwoorden komen niet overeen.');
 		return;
 	}
 	if (!fotoFile) {
@@ -352,6 +367,7 @@ function submitRegistration(event) {
 			voornaam: voornaam,
 			achternaam: achternaam,
 			email: email,
+			password: password,
 			telefoon: document.getElementById('r-telefoon')?.value.trim() || '',
 			profile_photo_url: base64Image,
 			rijbewijs: document.getElementById('r-rijbewijs-type')?.value || 'B', 
@@ -679,12 +695,12 @@ function connectTrackerSocket() {
 		console.log('Tracker verbonden met server.');
 	});
 
-	trackerSocket.on('bus:location-update', ({ lat, lng }) => {
+	trackerSocket.on('bus:location-update', ({ lat, lng, driverName }) => {
 		if (!trackerMap) {
-			pendingLocation = { lat, lng }; // kaart nog niet klaar, bewaar voor later
+			pendingLocation = { lat, lng, driverName };
 			return;
 		}
-		updateBusMarker(lat, lng);
+		updateBusMarker(lat, lng, driverName);
 	});
 
 	trackerSocket.on('bus:status', ({ online, driverName }) => {
@@ -732,7 +748,7 @@ function handleBusStatus(online, driverName) {
 }
 
 // ── Busmarker bijwerken op kaart ──
-function updateBusMarker(lat, lng) {
+async function updateBusMarker(lat, lng, driverName) {
 	const overlay = document.getElementById('tracker-map-overlay');
 	if (overlay) overlay.style.display = 'none';
 
@@ -745,12 +761,23 @@ function updateBusMarker(lat, lng) {
 		className:  ''
 	});
 
+	const name    = driverName || 'Schoolbus';
+	const address = await reverseGeocode(lat, lng);
+	const time    = new Date().toLocaleTimeString('nl-SR');
+	const popup   = `<div style="min-width:160px;line-height:1.5;">
+		<strong style="font-size:0.95rem;">🚌 ${name}</strong><br>
+		<span style="font-size:0.82rem;color:#6b6556;">📍 ${address}</span><br>
+		<span style="font-size:0.78rem;color:#a09a88;">🕐 ${time}</span>
+	</div>`;
+
 	if (!busMarker) {
 		busMarker = L.marker([lat, lng], { icon: busIcon, zIndexOffset: 1000 })
 			.addTo(trackerMap)
-			.bindTooltip('Schoolbus — BusConnect');
+			.bindPopup(popup, { maxWidth: 240 })
+			.openPopup();
 	} else {
 		busMarker.setLatLng([lat, lng]);
+		busMarker.setPopupContent(popup);
 	}
 
 	// Route polyline
@@ -817,7 +844,7 @@ function initTrackerMap() {
 
 	// Toon locatie die binnenkwam voordat de kaart klaar was
 	if (pendingLocation) {
-		updateBusMarker(pendingLocation.lat, pendingLocation.lng);
+		updateBusMarker(pendingLocation.lat, pendingLocation.lng, pendingLocation.driverName);
 		pendingLocation = null;
 	}
 }
@@ -977,14 +1004,232 @@ function initTrackerPage() {
 	}
 }
 
+// ── 10. CHAUFFEUR PORTAAL ─────────────────────────────────────
+let driverTracking   = false;
+let driverGeoWatch   = null;
+let driverSocket     = null;
+let driverBusId      = 'bus-001';
+
+function getDriverToken()      { return localStorage.getItem('bc-driver-token'); }
+function saveDriverToken(t)    { localStorage.setItem('bc-driver-token', t); }
+function clearDriverToken()    { localStorage.removeItem('bc-driver-token'); }
+
+function parseDriverToken(token) {
+	try { return JSON.parse(atob(token.split('.')[1])); } catch { return null; }
+}
+function isDriverTokenValid(token) {
+	if (!token) return false;
+	const p = parseDriverToken(token);
+	return p?.role === 'driver' && p.exp * 1000 > Date.now();
+}
+
+function initDriverPortal() {
+	const token = getDriverToken();
+	if (isDriverTokenValid(token)) {
+		showDriverDashboard(parseDriverToken(token));
+	} else {
+		showDriverLogin();
+	}
+}
+
+function showDriverLogin() {
+	document.getElementById('dp-login-view').style.display     = 'block';
+	document.getElementById('dp-dashboard-view').style.display = 'none';
+	document.getElementById('dp-login-error').style.display    = 'none';
+	document.getElementById('dp-login-form').reset();
+}
+
+function showDriverDashboard(payload) {
+	document.getElementById('dp-login-view').style.display     = 'none';
+	document.getElementById('dp-dashboard-view').style.display = 'block';
+
+	// Naam
+	document.getElementById('dp-name').textContent = payload.naam || `${payload.voornaam} ${payload.achternaam}`;
+	document.getElementById('dp-meta').textContent = `${payload.route || '—'} • ${payload.school || '—'} • ${payload.voertuig || '—'}`;
+
+	// Avatar
+	const avatar = document.getElementById('dp-avatar');
+	if (payload.foto) {
+		avatar.innerHTML = `<img src="${payload.foto}" alt="${payload.naam}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+	} else {
+		avatar.textContent = (payload.voornaam || '?')[0].toUpperCase();
+	}
+
+	// Badges
+	document.getElementById('dp-badges').innerHTML = `
+		<span class="badge badge-green">✓ VOG</span>
+		<span class="badge badge-amber">${payload.route || 'Route'}</span>
+	`;
+}
+
+async function submitDriverLogin(event) {
+	event.preventDefault();
+	const email    = document.getElementById('dp-email').value.trim();
+	const password = document.getElementById('dp-password').value;
+	const btn      = document.getElementById('dp-login-btn');
+	const errEl    = document.getElementById('dp-login-error');
+
+	btn.textContent = '⏳ Bezig…';
+	btn.disabled    = true;
+	errEl.style.display = 'none';
+
+	try {
+		const res  = await fetch(`${API_BASE_URL}/api/drivers/login`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ email, password })
+		});
+		const data = await res.json();
+
+		if (res.ok && data.success) {
+			saveDriverToken(data.token);
+			showDriverDashboard(parseDriverToken(data.token));
+		} else {
+			errEl.textContent   = data.error || 'Inloggen mislukt.';
+			errEl.style.display = 'block';
+		}
+	} catch {
+		errEl.textContent   = 'Geen verbinding met de server.';
+		errEl.style.display = 'block';
+	} finally {
+		btn.textContent = '🔐 Inloggen';
+		btn.disabled    = false;
+	}
+}
+
+function logoutDriver() {
+	if (driverTracking) stopDriverTracking();
+	clearDriverToken();
+	showDriverLogin();
+}
+
+function toggleDriverTracking() {
+	if (driverTracking) {
+		stopDriverTracking();
+	} else {
+		startDriverTracking();
+	}
+}
+
+function startDriverTracking() {
+	if (!navigator.geolocation) {
+		alert('GPS is niet beschikbaar op dit apparaat of browser.');
+		return;
+	}
+
+	const payload = parseDriverToken(getDriverToken());
+	if (!payload) { logoutDriver(); return; }
+
+	// Verbind met server via socket
+	if (!driverSocket || !driverSocket.connected) {
+		driverSocket = io(API_BASE_URL, { transports: ['websocket', 'polling'] });
+	}
+
+	navigator.geolocation.getCurrentPosition(() => {
+		driverTracking = true;
+		setDriverTrackBtn(true);
+
+		driverSocket.emit('driver:start', {
+			driverName: payload.naam,
+			busId:      driverBusId
+		});
+
+		const addrBox  = document.getElementById('dp-address-box');
+		const addrText = document.getElementById('dp-address-text');
+		if (addrBox) addrBox.style.display = 'block';
+
+		driverGeoWatch = navigator.geolocation.watchPosition(
+			async pos => {
+				const { latitude: lat, longitude: lng } = pos.coords;
+				driverSocket.emit('driver:location', { lat, lng, busId: driverBusId, driverName: payload.naam });
+
+				// Adres ophalen via Nominatim (gratis reverse geocoding)
+				if (addrText) {
+					try {
+						const r = await fetch(
+							`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`,
+							{ headers: { 'Accept-Language': 'nl' } }
+						);
+						const geo = await r.json();
+						const a   = geo.address || {};
+						addrText.textContent = [a.road, a.suburb || a.neighbourhood, a.city || a.town].filter(Boolean).join(', ') || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+					} catch {
+						addrText.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+					}
+				}
+
+				// Status dot
+				const dot  = document.getElementById('dp-status-dot');
+				const text = document.getElementById('dp-status-text');
+				if (dot)  { dot.className = 'status-dot online'; }
+				if (text) { text.textContent = 'Tracking actief ✓'; text.style.color = 'var(--success)'; }
+			},
+			err => console.error('GPS fout:', err),
+			{ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+		);
+	}, () => {
+		alert('GPS toegang geweigerd. Sta locatietoegang toe in uw browserinstellingen.');
+	}, { timeout: 10000 });
+}
+
+function stopDriverTracking() {
+	driverTracking = false;
+	if (driverGeoWatch !== null) {
+		navigator.geolocation.clearWatch(driverGeoWatch);
+		driverGeoWatch = null;
+	}
+	if (driverSocket) {
+		driverSocket.emit('driver:stop', { busId: driverBusId });
+	}
+	setDriverTrackBtn(false);
+
+	const addrBox  = document.getElementById('dp-address-box');
+	const dot      = document.getElementById('dp-status-dot');
+	const text     = document.getElementById('dp-status-text');
+	if (addrBox) addrBox.style.display = 'none';
+	if (dot)     { dot.className = 'status-dot offline'; }
+	if (text)    { text.textContent = 'Tracking uitgeschakeld'; text.style.color = ''; }
+}
+
+function setDriverTrackBtn(tracking) {
+	const btn = document.getElementById('dp-track-btn');
+	if (!btn) return;
+	if (tracking) {
+		btn.textContent = '⏹ Stop Tracking';
+		btn.classList.replace('btn-amber', 'btn-danger');
+	} else {
+		btn.textContent = '📡 Start Tracking';
+		btn.classList.replace('btn-danger', 'btn-amber');
+	}
+}
+
+// Reverse geocoding helper voor de kaartmarker (ouder-zijde)
+async function reverseGeocode(lat, lng) {
+	try {
+		const r   = await fetch(
+			`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`,
+			{ headers: { 'Accept-Language': 'nl' } }
+		);
+		const geo = await r.json();
+		const a   = geo.address || {};
+		return [a.road, a.suburb || a.neighbourhood, a.city || a.town].filter(Boolean).join(', ')
+		       || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+	} catch {
+		return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+	}
+}
+
 // Window bindings (vereist door module scope)
-window.setTrackerRole       = setTrackerRole;
-window.resetTrackerRole     = resetTrackerRole;
-window.toggleTracking       = toggleTracking;
-window.closeTrackerToast    = closeTrackerToast;
-window.closeAdminModal      = closeAdminModal;
+window.setTrackerRole        = setTrackerRole;
+window.resetTrackerRole      = resetTrackerRole;
+window.toggleTracking        = toggleTracking;
+window.closeTrackerToast     = closeTrackerToast;
+window.closeAdminModal       = closeAdminModal;
 window.closeAdminModalDirect = closeAdminModalDirect;
-window.submitAdminLogin     = submitAdminLogin;
+window.submitAdminLogin      = submitAdminLogin;
+window.submitDriverLogin     = submitDriverLogin;
+window.logoutDriver          = logoutDriver;
+window.toggleDriverTracking  = toggleDriverTracking;
 
 // ── 9. INIT ───────────────────────────────────────────────────
 async function fetchLiveDrivers() {

@@ -21,7 +21,8 @@
         <button class="nav-pill"        data-page="about"   onclick="showPage('about')">Over Ons</button>
         <button class="nav-pill"        data-page="contact" onclick="showPage('contact')">Contact</button>
         <button class="nav-pill"        data-page="faq"     onclick="showPage('faq')">FAQ</button>
-        <button class="nav-pill"        data-page="signin"  onclick="showPage('signin')">Registreer</button>
+        <button class="nav-pill"        data-page="signin"       onclick="showPage('signin')">Registreer</button>
+        <button class="nav-pill"        data-page="driver-portal" onclick="showPage('driver-portal')">🚌 Chauffeur Login</button>
         <button class="nav-pill nav-pill--tracker" data-page="tracker" onclick="showPage('tracker')">📍 Live Locatie</button>
       </div>
     </div>
@@ -46,8 +47,9 @@
     <a href="#" onclick="showPage('about');   return false;">ℹ️ Over Ons</a>
     <a href="#" onclick="showPage('contact'); return false;">📬 Contact</a>
     <a href="#" onclick="showPage('faq');     return false;">❓ FAQ</a>
-    <a href="#" onclick="showPage('signin');  return false;">🚌 Registreer als Chauffeur</a>
-    <a href="#" onclick="showPage('tracker'); return false;">📍 Live Locatie</a>
+    <a href="#" onclick="showPage('signin');        return false;">📋 Registreer als Chauffeur</a>
+    <a href="#" onclick="showPage('driver-portal'); return false;">🚌 Chauffeur Login</a>
+    <a href="#" onclick="showPage('tracker');       return false;">📍 Live Locatie</a>
   </div>
 
   <div id="page-home" class="page active">
@@ -85,7 +87,7 @@
             </div>
             <div class="field">
               <label for="f-school">School</label>
-              <select id="f-school" class="items">
+              <select id="f-school" class="items" onchange="filterDrivers()">
                 <option value="">— Alle scholen —</option>
                 <option value="O.S. Flora"          data-category="GLO">O.S. Flora</option>
                 <option value="O.S. Welgelegen"     data-category="GLO">O.S. Welgelegen</option>
@@ -96,18 +98,20 @@
             </div>
             <div class="field">
               <label for="f-route">Wijk / Route</label>
-              <select id="f-route">
+              <select id="f-route" onchange="filterDrivers()">
                 <option value="">— Alle routes —</option>
                 <option value="Noord">Noord</option>
                 <option value="Zuid">Zuid</option>
                 <option value="Oost">Oost</option>
                 <option value="West">West</option>
                 <option value="Centrum">Centrum</option>
+                <option value="Paramaribo">Paramaribo</option>
+                <option value="Wanica">Wanica</option>
               </select>
             </div>
             <div class="field">
               <label for="f-dag">Beschikbaarheid</label>
-              <select id="f-dag">
+              <select id="f-dag" onchange="filterDrivers()">
                 <option value="">— Alle dagen —</option>
                 <option value="Ma">Maandag</option>
                 <option value="Di">Dinsdag</option>
@@ -330,6 +334,14 @@
                     <label for="r-telefoon">Telefoonnummer *</label>
                     <input type="tel" id="r-telefoon" placeholder="+597 000 0000" required />
                   </div>
+                  <div class="form-field">
+                    <label for="r-password">Wachtwoord *</label>
+                    <input type="password" id="r-password" placeholder="Min. 6 tekens" minlength="6" required />
+                  </div>
+                  <div class="form-field">
+                    <label for="r-password2">Wachtwoord bevestigen *</label>
+                    <input type="password" id="r-password2" placeholder="Herhaal wachtwoord" minlength="6" required />
+                  </div>
                   <div class="form-field full">
                     <label for="r-foto">Profielfoto (verplicht) *</label>
                     <input type="file" id="r-foto" accept="image/png, image/jpeg" onchange="handlePhotoPreview(this)" required />
@@ -457,6 +469,88 @@
         </div>
       </div>
     </section>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       PAGINA: CHAUFFEUR PORTAAL (login + dashboard)
+  ════════════════════════════════════════════════════════════ -->
+  <div id="page-driver-portal" class="page">
+
+    <!-- LOGIN VIEW -->
+    <div id="dp-login-view">
+      <div class="hero" style="padding-bottom:2rem;">
+        <div class="hero-tag">🚌 Chauffeur Portaal</div>
+        <h1>Log in op uw <span>chauffeursprofiel</span></h1>
+        <p>Beheer uw profiel en activeer live GPS-tracking vanuit uw persoonlijk dashboard.</p>
+      </div>
+      <section class="section" style="padding-top:0;">
+        <div class="container" style="max-width:460px;">
+          <div class="form-card reveal">
+            <div id="dp-login-error" style="display:none;background:#fde8e8;color:var(--danger);border:1px solid #f5c0c0;border-radius:var(--radius);padding:0.65rem 0.9rem;font-size:0.87rem;margin-bottom:1.1rem;"></div>
+            <form id="dp-login-form" onsubmit="submitDriverLogin(event)">
+              <div class="form-grid">
+                <div class="form-field full">
+                  <label for="dp-email">E-mailadres</label>
+                  <input type="email" id="dp-email" placeholder="jan@email.com" required />
+                </div>
+                <div class="form-field full">
+                  <label for="dp-password">Wachtwoord</label>
+                  <input type="password" id="dp-password" placeholder="••••••••" required />
+                </div>
+                <div class="form-field full">
+                  <button type="submit" class="btn btn-amber btn-full" id="dp-login-btn">🔐 Inloggen</button>
+                </div>
+              </div>
+            </form>
+            <p style="text-align:center;margin-top:1.25rem;font-size:0.87rem;color:var(--text-muted);">
+              Nog geen account? <a href="#" onclick="showPage('signin');return false;" style="color:var(--accent);font-weight:600;">Registreer hier</a>
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- DASHBOARD VIEW -->
+    <div id="dp-dashboard-view" style="display:none;">
+      <section class="section">
+        <div class="container" style="max-width:700px;">
+
+          <!-- Profiel kaart -->
+          <div class="form-card reveal" id="dp-profile-card" style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+            <div class="driver-avatar" id="dp-avatar" style="width:72px;height:72px;font-size:2rem;flex-shrink:0;"></div>
+            <div style="flex:1;min-width:160px;">
+              <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:700;" id="dp-name">—</div>
+              <div style="color:var(--text-muted);font-size:0.88rem;margin-top:0.2rem;" id="dp-meta">—</div>
+              <div style="margin-top:0.5rem;display:flex;gap:0.5rem;flex-wrap:wrap;" id="dp-badges"></div>
+            </div>
+            <button class="btn btn-dark" style="align-self:flex-start;" onclick="logoutDriver()">Uitloggen</button>
+          </div>
+
+          <!-- Tracking kaart -->
+          <div class="form-card reveal" style="text-align:center;">
+            <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:700;margin-bottom:0.5rem;">📡 Live Tracking</div>
+            <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1.5rem;">
+              Activeer tracking zodat ouders uw live positie op de kaart kunnen zien.
+            </p>
+
+            <div id="dp-status-indicator" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-bottom:1.25rem;">
+              <span class="status-dot offline" id="dp-status-dot"></span>
+              <span id="dp-status-text" style="font-size:0.9rem;color:var(--text-muted);">Tracking uitgeschakeld</span>
+            </div>
+
+            <button class="btn btn-amber" id="dp-track-btn" onclick="toggleDriverTracking()" style="font-size:1rem;padding:0.85rem 2rem;width:100%;max-width:280px;">
+              📡 Start Tracking
+            </button>
+
+            <div id="dp-address-box" style="display:none;margin-top:1.5rem;padding:1rem;background:var(--accent-light);border-radius:var(--radius);font-size:0.88rem;">
+              <div style="font-weight:600;margin-bottom:0.25rem;">📍 Huidige locatie</div>
+              <div id="dp-address-text" style="color:var(--text-muted);">Ophalen…</div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </div>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════

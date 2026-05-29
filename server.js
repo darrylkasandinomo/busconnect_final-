@@ -111,7 +111,8 @@ io.on('connection', socket => {
             err => { if (err) console.error('Location insert error:', err.message); }
         );
 
-        io.emit('bus:location-update', { busId: id, lat, lng });
+        const driverName = activeBuses.get(id)?.driverName || 'Onbekend';
+        io.emit('bus:location-update', { busId: id, lat, lng, driverName });
     });
 
     socket.on('driver:stop', ({ busId }) => {
@@ -169,7 +170,15 @@ app.get('/api/admin/stats', authMiddleware, (req, res) => {
 app.get('/api/admin/drivers', authMiddleware, (req, res) => {
     if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Geen toegang.' });
     db.query('SELECT user_id, voornaam, achternaam, email, telefoon, route, school, created_at FROM drivers ORDER BY created_at DESC', (err, rows) => {
-        if (err) return res.status(500).json({ error: 'Database fout.' });
+        if (err) {
+            const fs   = require('fs');
+            const path = require('path');
+            try {
+                const raw = fs.readFileSync(path.join(__dirname, 'data', 'drivers.json'), 'utf8');
+                const all = JSON.parse(raw).map(({ password_hash, ...rest }) => rest);
+                return res.json(all);
+            } catch { return res.status(500).json({ error: 'Database fout.' }); }
+        }
         res.json(rows);
     });
 });
@@ -180,6 +189,33 @@ app.delete('/api/admin/drivers/:id', authMiddleware, (req, res) => {
         if (err) return res.status(500).json({ error: 'Verwijderen mislukt.' });
         res.json({ success: true });
     });
+});
+
+app.get('/api/admin/messages', authMiddleware, (req, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Geen toegang.' });
+    db.query('SELECT * FROM contact_messages ORDER BY created_at DESC', (err, rows) => {
+        if (err) return res.status(500).json({ error: 'Database fout.' });
+        res.json(rows);
+    });
+});
+
+app.delete('/api/admin/messages/:id', authMiddleware, (req, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Geen toegang.' });
+    db.query('DELETE FROM contact_messages WHERE id = ?', [req.params.id], (err) => {
+        if (err) return res.status(500).json({ error: 'Verwijderen mislukt.' });
+        res.json({ success: true });
+    });
+});
+
+app.get('/api/admin/buses/history', authMiddleware, (req, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Geen toegang.' });
+    db.query(
+        'SELECT bus_id, latitude, longitude, recorded_at FROM bus_locations ORDER BY recorded_at DESC LIMIT 500',
+        (err, rows) => {
+            if (err) return res.status(500).json({ error: 'Database fout.' });
+            res.json(rows);
+        }
+    );
 });
 
 // ── ROUTES ────────────────────────────────────────────────────
