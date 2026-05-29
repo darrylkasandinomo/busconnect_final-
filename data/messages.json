@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1780094607828,
+    "contact_name": "Test",
+    "contact_achternaam": "",
+    "contact_email": "test@test.com",
+    "contact_subject": "",
+    "contact_message": "Hallo test",
+    "created_at": "2026-05-29T22:43:27.828Z"
+  },
+  {
+    "id": 1780094656023,
+    "contact_name": "Shemar Dipotaroeno",
+    "contact_achternaam": "Dipotaroeno",
+    "contact_email": "shemardipo21@icloud.com",
+    "contact_subject": "verkoop",
+    "contact_message": "hllo",
+    "created_at": "2026-05-29T22:44:16.023Z"
+  }
+]

@@ -1,17 +1,40 @@
 'use strict';
 
 const express = require('express');
-const { MailtrapClient } = require('mailtrap');
+const fs      = require('fs');
+const path    = require('path');
+
+const FALLBACK_FILE = path.join(__dirname, '..', 'data', 'messages.json');
+
+function saveFallback(entry) {
+    try {
+        fs.mkdirSync(path.dirname(FALLBACK_FILE), { recursive: true });
+        const existing = fs.existsSync(FALLBACK_FILE)
+            ? JSON.parse(fs.readFileSync(FALLBACK_FILE, 'utf8'))
+            : [];
+        existing.push(entry);
+        fs.writeFileSync(FALLBACK_FILE, JSON.stringify(existing, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Contact fallback write error:', e.message);
+    }
+}
+
+function readFallback() {
+    try {
+        if (!fs.existsSync(FALLBACK_FILE)) return [];
+        return JSON.parse(fs.readFileSync(FALLBACK_FILE, 'utf8'));
+    } catch { return []; }
+}
 
 module.exports = (db) => {
     const router = express.Router();
 
-    // POST /api/contact — save a contact message and notify admin
+    // POST /api/contact — save a contact message
     router.post('/', async (req, res) => {
         const { name, achternaam, email, subject, message } = req.body;
 
         if (!name || !email || !message) {
-            return res.status(400).json({ success: false, error: 'Missing required fields' });
+            return res.status(400).json({ success: false, error: 'Vul alle verplichte velden in.' });
         }
 
         const sql = `
@@ -20,28 +43,26 @@ module.exports = (db) => {
             ) VALUES (?, ?, ?, ?, ?)
         `;
 
-        db.query(sql, [name, achternaam, email, subject, message], async (err) => {
+        db.query(sql, [name, achternaam, email, subject, message], (err) => {
             if (err) {
-                console.error('Contact database error:', err);
-                return res.status(500).json({ success: false, error: 'Database error' });
+                console.error('Contact database error — using fallback:', err.message);
+                saveFallback({
+                    id: Date.now(),
+                    contact_name: name,
+                    contact_achternaam: achternaam || '',
+                    contact_email: email,
+                    contact_subject: subject || '',
+                    contact_message: message,
+                    created_at: new Date().toISOString()
+                });
             }
-
-            if (process.env.MAILTRAP_TOKEN) {
-                try {
-                    const client = new MailtrapClient({ token: process.env.MAILTRAP_TOKEN });
-                    await client.send({
-                        from: { email: 'hello@demomailtrap.co', name: 'BusConnect Contact' },
-                        to:   [{ email: process.env.ADMIN_EMAIL }],
-                        subject: 'New Contact Message',
-                        text: `New message from:\n\nName: ${name} ${achternaam}\nEmail: ${email}\n\nMessage:\n${message}`
-                    });
-                } catch (emailError) {
-                    console.error('Admin email error:', emailError);
-                }
-            }
-
             return res.json({ success: true });
         });
+    });
+
+    // GET /api/contact/fallback — berichten uit JSON bestand (als DB down is)
+    router.get('/fallback', (req, res) => {
+        res.json(readFallback());
     });
 
     return router;
